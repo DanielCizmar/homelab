@@ -8,6 +8,13 @@ prometheus.exporter.unix "raspberry_pi" {
     "btrfs",
     "infiniband",
     "zfs",
+    "nvme",
+    "mdadm",
+    "fibrechannel",
+    "infiniband",
+    "nfsd",
+    "nfs",
+    "zfs",
   ]
 }
 
@@ -19,7 +26,7 @@ prometheus.scrape "raspberry_pi" {
 }
 
 prometheus.relabel "raspberry_pi" {
-  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+  forward_to = [prometheus.remote_write.metrics_hosted_prometheus.receiver]
 
   rule {
     target_label = "instance"

@@ -13,12 +13,6 @@ services:
       GRAFANA_CLOUD_METRICS_USERNAME: ${GRAFANA_CLOUD_METRICS_USERNAME:?GRAFANA_CLOUD_METRICS_USERNAME is required}
       GRAFANA_CLOUD_METRICS_PASSWORD: ${GRAFANA_CLOUD_METRICS_PASSWORD:?GRAFANA_CLOUD_METRICS_PASSWORD is required}
       ALLOY_HOSTNAME: ${ALLOY_HOSTNAME:?ALLOY_HOSTNAME is required}
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:12345/-/healthy >/dev/null || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
     volumes:
       - ./services/alloy/config/config.alloy:/etc/alloy/config.alloy:ro
       - alloy-data:/var/lib/alloy/data
@@ -30,7 +24,7 @@ services:
     restart: unless-stopped
     networks:
       - monitoring
-    
+
 networks:
   monitoring:
     name: homelab_monitoring
