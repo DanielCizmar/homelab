@@ -1,0 +1,12 @@
+# Secrets and enviroment variables
+
+.env
+.env.*
+*.secret
+*.key
+*.pem
+
+# Services t hat should not be commited
+
+data/
+volumes/
