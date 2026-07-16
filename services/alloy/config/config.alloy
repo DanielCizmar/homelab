@@ -32,7 +32,7 @@ prometheus.relabel "raspberry_pi" {
   }
 }
 
-prometheus.remote_write "grafana_cloud" {
+prometheus.remote_write "metrics_hosted_prometheus" {
   endpoint {
     url = sys.env("GRAFANA_CLOUD_METRICS_URL")
 
