@@ -1,1 +1,44 @@
-a
+prometheus.exporter.unix "raspberry_pi" {
+  procfs_path = "/host/proc"
+  sysfs_path  = "/host/sys"
+  rootfs_path = "/host/root"
+
+  disable_collectors = [
+    "ipvs",
+    "btrfs",
+    "infiniband",
+    "zfs",
+  ]
+}
+
+prometheus.scrape "raspberry_pi" {
+  targets    = prometheus.exporter.unix.raspberry_pi.targets
+  forward_to = [prometheus.relabel.raspberry_pi.receiver]
+
+  scrape_interval = "60s"
+}
+
+prometheus.relabel "raspberry_pi" {
+  forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+
+  rule {
+    target_label = "instance"
+    replacement  = sys.env("ALLOY_HOSTNAME")
+  }
+
+  rule {
+    target_label = "homelab"
+    replacement  = "raspberry-pi"
+  }
+}
+
+prometheus.remote_write "grafana_cloud" {
+  endpoint {
+    url = sys.env("GRAFANA_CLOUD_METRICS_URL")
+
+    basic_auth {
+      username = sys.env("GRAFANA_CLOUD_METRICS_USERNAME")
+      password = sys.env("GRAFANA_CLOUD_METRICS_PASSWORD")
+    }
+  }
+}
