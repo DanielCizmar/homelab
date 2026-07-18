@@ -73,7 +73,7 @@ services:
       - "8443:443/tcp"
 
     # Prevent Pi-hole from consuming excessive RAM.
-    mem_limit: 384m
+    # mem_limit: 384m
 
     restart: unless-stopped
 
