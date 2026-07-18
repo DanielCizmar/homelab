@@ -25,9 +25,73 @@ services:
     networks:
       - monitoring
 
+  pihole:
+    image: pihole/pihole:2026.07.2
+    hostname: pihole
+
+    environment:
+      TZ: Europe/Bratislava
+
+      FTLCONF_webserver_api_password: ${PIHOLE_WEBPASSWORD:?PIHOLE_WEBPASSWORD is required}
+
+      # Required when using Docker's normal bridge network.
+      FTLCONF_dns_listeningMode: 'ALL'
+
+      # DNS servers used when a domain is not blocked.
+      FTLCONF_dns_upstreams: |-
+        1.1.1.1
+        1.0.0.1
+
+      # Store only seven days of query history.
+      FTLCONF_database_maxDBdays: '7'
+
+      # Write query data every five minutes instead of every minute.
+      FTLCONF_database_DBinterval: '300'
+
+      # Smaller DNS cache for a small home network.
+      FTLCONF_dns_cache_size: '5000'
+
+      # The dashboard does not need 50 web worker threads at home.
+      FTLCONF_webserver_threads: '10'
+
+      # The Raspberry Pi host already synchronizes its clock.
+      FTLCONF_ntp_ipv4_active: 'false'
+      FTLCONF_ntp_ipv6_active: 'false'
+      FTLCONF_ntp_sync_active: 'false'
+
+    volumes:
+      - ./services/pihole/etc-pihole:/etc/pihole
+
+    ports:
+      # DNS
+      - "53:53/tcp"
+      - "53:53/udp"
+
+      # Pi-hole dashboard.
+      # Ports 80 and 443 remain available for your future website.
+      - "8080:80/tcp"
+      - "8443:443/tcp"
+
+    # Prevent Pi-hole from consuming excessive RAM.
+    mem_limit: 384m
+
+    restart: unless-stopped
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    networks:
+      - dns
+
 networks:
   monitoring:
     name: homelab_monitoring
+
+  dns:
+    name: homelab_dns
 
 volumes:
   alloy-data:
