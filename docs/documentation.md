@@ -93,15 +93,6 @@ sudo ss -lntup | grep ':53 '
 
 Disable or reconfigure the conflicting DNS service before starting Pi-hole. On systems using `systemd-resolved`, confirm its role before changing it because incorrect DNS settings can disconnect the host from name resolution.
 
-### Required environment variable is missing
-
-Create `.env` from the example and fill in every required value:
-
-```sh
-test -f .env || cp .env.example .env
-docker compose config
-```
-
 ### DNS works locally but not for other devices
 
 Confirm that the router advertises `192.168.0.236` as its LAN DNS server, clients have renewed their DHCP leases, and TCP/UDP port 53 is not blocked by the host firewall.
