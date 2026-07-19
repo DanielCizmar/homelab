@@ -1,16 +1,18 @@
 # Raspberry Pi Homelab
 
-Configuration and documentation for my Raspberry Pi 4b 2GB Homelab.
+Hardware:
+- Raspberry Pi 4B
+- 2 GB RAM
+- 64GB SD Card
 
-## Planned services
+Services:
+- Grafana Alloy — system monitoring sent to Grafana Cloud
+- Pi-hole — network-wide DNS filtering
 
-[x] Git (version control)
-[x] Docker
-[x] Grafana Alloy (monitoring)
-[ ] Pi-Hole (open-source adblock)
-[ ] Website hosting
-[ ] VPN
-[ ] More...
+## Network
+
+- Raspberry Pi hostname: 
+- Pi-hole IP: 192.168.0.236
 
 ## Repository structure
 
