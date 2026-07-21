@@ -1,0 +1,15 @@
+[Unit]
+Description=Homelab TFT display
+After=local-fs.target
+Wants=local-fs.target
+
+[Service]
+Type=simple
+User=piadmin
+WorkingDirectory=/opt/homelab/services/display
+ExecStart=/opt/homelab/services/display/.venv/bin/python /opt/homelab/services/display/app/display.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
