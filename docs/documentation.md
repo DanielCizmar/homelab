@@ -38,6 +38,26 @@ Alloy collects Raspberry Pi system metrics from the mounted host filesystems and
 
 Pi-hole stores its persistent data in `services/pihole/etc-pihole/`. These generated files are excluded from Git.
 
+## Addition 3: TFT display
+
+1. Connect the 128 x 128 ST7735R SPI display using the wiring in [`services/display/README.md`](../services/display/README.md), then enable SPI on the Raspberry Pi.
+2. Create the Python environment and install the dependencies:
+
+   ```sh
+   python3 -m venv services/display/.venv
+   services/display/.venv/bin/pip install -r services/display/requirements.txt
+   ```
+
+3. Install and start the systemd service:
+
+   ```sh
+   sudo cp services/display/systemd/homelab-display.service /etc/systemd/system/
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now homelab-display
+   ```
+
+The display runs directly on the Raspberry Pi and shows the current time and today's Slovak nameday.
+
 ## Common operations
 
 Run commands from `/opt/homelab`:
