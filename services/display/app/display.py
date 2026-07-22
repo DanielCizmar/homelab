@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import json
-import math
 import signal
 import time
 from datetime import datetime
@@ -14,18 +13,33 @@ from adafruit_rgb_display import st7735
 
 
 # ---------------------------------------------------------------------
-# Application configuration
+# Display configuration
 # ---------------------------------------------------------------------
 
 WIDTH = 128
 HEIGHT = 128
-FPS = 10
+
+ROTATION = 180
+X_OFFSET = 2
+Y_OFFSET = 3
 
 APP_DIR = Path(__file__).resolve().parent
 NAMEDAYS_FILE = APP_DIR / "sk-meniny.json"
 
 REGULAR_FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 BOLD_FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+
+# Night-friendly colors.
+#
+# Values range from 0 to 255:
+# (red, green, blue)
+BACKGROUND_COLOR = (0, 0, 0)
+HOUR_COLOR = (130, 25, 10)
+MINUTE_COLOR = (160, 35, 12)
+SECOND_COLOR = (100, 18, 8)
+DIVIDER_COLOR = (45, 10, 5)
+LABEL_COLOR = (75, 22, 12)
+NAMEDAY_COLOR = (115, 32, 14)
 
 running = True
 
@@ -35,10 +49,7 @@ running = True
 # ---------------------------------------------------------------------
 
 def stop_program(_signal_number, _frame):
-    """
-    Stop the main loop cleanly when Ctrl+C is pressed or when systemd
-    stops the service.
-    """
+    """Tell the main loop to stop cleanly."""
     global running
     running = False
 
@@ -48,18 +59,46 @@ signal.signal(signal.SIGINT, stop_program)
 
 
 # ---------------------------------------------------------------------
-# Namedays
+# Font handling
+# ---------------------------------------------------------------------
+
+def load_font(path, size):
+    """
+    Load a TrueType font.
+
+    If the requested font is missing, use Pillow's built-in font so the
+    application does not crash.
+    """
+    try:
+        return ImageFont.truetype(path, size)
+    except OSError:
+        print(f"Warning: could not load font: {path}")
+        return ImageFont.load_default()
+
+
+def fit_font(draw, text, font_path, maximum_width, starting_size):
+    """Reduce the font size until the text fits the available width."""
+    for size in range(starting_size, 7, -1):
+        font = load_font(font_path, size)
+        box = draw.textbbox((0, 0), text, font=font)
+        width = box[2] - box[0]
+
+        if width <= maximum_width:
+            return font
+
+    return load_font(font_path, 8)
+
+
+# ---------------------------------------------------------------------
+# Nameday handling
 # ---------------------------------------------------------------------
 
 def load_namedays():
     """
-    Load the Slovak nameday calendar.
-
-    Expected JSON structure:
+    Load namedays from this structure:
 
     {
         "7": {
-            "19": "Dušana",
             "20": "Iľja, Eliáš"
         }
     }
@@ -69,7 +108,7 @@ def load_namedays():
             data = json.load(file)
 
         if not isinstance(data, dict):
-            raise ValueError("The top level of the JSON must be an object.")
+            raise ValueError("The top level of the nameday JSON must be an object.")
 
         return data
 
@@ -77,25 +116,20 @@ def load_namedays():
         print(f"Nameday file not found: {NAMEDAYS_FILE}")
 
     except json.JSONDecodeError as error:
-        print(f"Nameday JSON is invalid: {error}")
+        print(f"Invalid nameday JSON: {error}")
 
     except ValueError as error:
-        print(f"Nameday data has an unexpected structure: {error}")
+        print(f"Unexpected nameday structure: {error}")
 
     return {}
 
 
 def get_nameday(namedays, now):
-    """
-    Look up the nameday using month and day as string keys.
-
-    Example:
-        namedays["7"]["20"]
-    """
+    """Return today's nameday using month and day string keys."""
     month = str(now.month)
     day = str(now.day)
 
-    month_data = namedays.get(month)
+    month_data = namedays.get(month, {})
 
     if not isinstance(month_data, dict):
         return "Neznáme"
@@ -113,90 +147,98 @@ def get_nameday(namedays, now):
 # ---------------------------------------------------------------------
 
 def draw_centered_text(draw, y, text, font, fill):
-    """Draw text centered horizontally on the screen."""
-    text_box = draw.textbbox((0, 0), text, font=font)
-    text_width = text_box[2] - text_box[0]
-    x = max(0, (WIDTH - text_width) // 2)
+    """Draw text centered horizontally."""
+    box = draw.textbbox((0, 0), text, font=font)
 
-    draw.text((x, y), text, font=font, fill=fill)
+    text_width = box[2] - box[0]
+    text_height = box[3] - box[1]
 
+    x = (WIDTH - text_width) // 2
 
-def fit_text(draw, text, font_path, maximum_width, starting_size):
-    """
-    Reduce the font size until the text fits within maximum_width.
-
-    This is useful for namedays such as:
-        Branislava, Bronislava
-    """
-    for font_size in range(starting_size, 7, -1):
-        font = ImageFont.truetype(font_path, font_size)
-
-        text_box = draw.textbbox((0, 0), text, font=font)
-        text_width = text_box[2] - text_box[0]
-
-        if text_width <= maximum_width:
-            return font
-
-    return ImageFont.truetype(font_path, 8)
-
-
-def draw_fish(draw, x, y, direction=1):
-    """Draw a small fish facing left or right."""
-    body_width = 22
-    body_height = 10
-
-    if direction == 1:
-        body_box = (
-            x,
-            y,
-            x + body_width,
-            y + body_height,
-        )
-
-        tail = [
-            (x, y + body_height // 2),
-            (x - 8, y - 3),
-            (x - 8, y + body_height + 3),
-        ]
-
-        eye_x = x + 16
-
-    else:
-        body_box = (
-            x - body_width,
-            y,
-            x,
-            y + body_height,
-        )
-
-        tail = [
-            (x, y + body_height // 2),
-            (x + 8, y - 3),
-            (x + 8, y + body_height + 3),
-        ]
-
-        eye_x = x - 16
-
-    draw.ellipse(
-        body_box,
-        fill=(255, 165, 30),
-        outline=(255, 230, 160),
+    # Subtract box[1] because some fonts have a vertical top offset.
+    draw.text(
+        (x, y - box[1]),
+        text,
+        font=font,
+        fill=fill,
     )
 
-    draw.polygon(
-        tail,
-        fill=(255, 120, 20),
+    return text_height
+
+
+def draw_screen(display, namedays, now, time_font, label_font):
+    """Create and send one complete screen image."""
+    image = Image.new(
+        "RGB",
+        (WIDTH, HEIGHT),
+        BACKGROUND_COLOR,
     )
 
-    draw.ellipse(
-        (
-            eye_x - 1,
-            y + 2,
-            eye_x + 1,
-            y + 4,
-        ),
-        fill=(0, 0, 0),
+    draw = ImageDraw.Draw(image)
+
+    hour_text = now.strftime("%H")
+    minute_text = now.strftime("%M")
+    second_text = now.strftime("%S")
+    nameday_text = get_nameday(namedays, now)
+
+    # Three large clock lines.
+    draw_centered_text(
+        draw,
+        1,
+        hour_text,
+        time_font,
+        HOUR_COLOR,
     )
+
+    draw_centered_text(
+        draw,
+        32,
+        minute_text,
+        time_font,
+        MINUTE_COLOR,
+    )
+
+    draw_centered_text(
+        draw,
+        63,
+        second_text,
+        time_font,
+        SECOND_COLOR,
+    )
+
+    # Separator between the clock and the nameday.
+    draw.line(
+        (10, 94, 117, 94),
+        fill=DIVIDER_COLOR,
+        width=1,
+    )
+
+    draw_centered_text(
+        draw,
+        98,
+        "Meniny",
+        label_font,
+        LABEL_COLOR,
+    )
+
+    # Long namedays automatically use a smaller font.
+    nameday_font = fit_font(
+        draw=draw,
+        text=nameday_text,
+        font_path=REGULAR_FONT_PATH,
+        maximum_width=122,
+        starting_size=11,
+    )
+
+    draw_centered_text(
+        draw,
+        113,
+        nameday_text,
+        nameday_font,
+        NAMEDAY_COLOR,
+    )
+
+    display.image(image)
 
 
 # ---------------------------------------------------------------------
@@ -206,12 +248,12 @@ def draw_fish(draw, x, y, direction=1):
 def main():
     namedays = load_namedays()
 
-    # Display control pins.
+    # TFT control pins.
     cs_pin = digitalio.DigitalInOut(board.CE0)
     dc_pin = digitalio.DigitalInOut(board.D25)
     reset_pin = digitalio.DigitalInOut(board.D24)
 
-    # Hardware SPI interface.
+    # Raspberry Pi hardware SPI interface.
     spi = board.SPI()
 
     display = st7735.ST7735R(
@@ -221,126 +263,36 @@ def main():
         rst=reset_pin,
         width=WIDTH,
         height=HEIGHT,
-        rotation=180,
+        rotation=ROTATION,
+        x_offset=X_OFFSET,
+        y_offset=Y_OFFSET,
         baudrate=16_000_000,
-	x_offset=2,
-	y_offset=3,
     )
 
-    regular_font = ImageFont.truetype(REGULAR_FONT_PATH, 10)
-    time_font = ImageFont.truetype(BOLD_FONT_PATH, 20)
-    label_font = ImageFont.truetype(REGULAR_FONT_PATH, 9)
+    time_font = load_font(BOLD_FONT_PATH, 31)
+    label_font = load_font(REGULAR_FONT_PATH, 9)
 
-    fish_x = 15.0
-    fish_direction = 1
-    frame_number = 0
+    previous_second = None
 
     while running:
-        frame_started = time.monotonic()
         now = datetime.now()
 
-        image = Image.new(
-            "RGB",
-            (WIDTH, HEIGHT),
-            (3, 20, 35),
-        )
-
-        draw = ImageDraw.Draw(image)
-
-        # Underwater section.
-        draw.rectangle(
-            (0, 82, WIDTH, HEIGHT),
-            fill=(0, 55, 95),
-        )
-
-        # Animated waves.
-        wave_offset = frame_number % 12
-
-        for x in range(-12, WIDTH + 12, 12):
-            draw.arc(
-                (
-                    x + wave_offset,
-                    76,
-                    x + wave_offset + 12,
-                    88,
-                ),
-                0,
-                180,
-                fill=(60, 160, 210),
+        # Only redraw when the second changes.
+        if now.second != previous_second:
+            draw_screen(
+                display=display,
+                namedays=namedays,
+                now=now,
+                time_font=time_font,
+                label_font=label_font,
             )
 
-        time_text = now.strftime("%H:%M:%S")
-        date_text = now.strftime("%d.%m.%Y")
-        nameday_text = get_nameday(namedays, now)
+            previous_second = now.second
 
-        draw_centered_text(
-            draw,
-            7,
-            time_text,
-            time_font,
-            (255, 255, 255),
-        )
+        # Prevent unnecessary CPU usage while waiting for the next second.
+        time.sleep(0.05)
 
-        draw_centered_text(
-            draw,
-            31,
-            date_text,
-            regular_font,
-            (180, 220, 255),
-        )
-
-        draw.text(
-            (5, 49),
-            "Meniny:",
-            font=label_font,
-            fill=(150, 190, 210),
-        )
-
-        nameday_font = fit_text(
-            draw=draw,
-            text=nameday_text,
-            font_path=REGULAR_FONT_PATH,
-            maximum_width=118,
-            starting_size=11,
-        )
-
-        draw_centered_text(
-            draw,
-            62,
-            nameday_text,
-            nameday_font,
-            (255, 220, 100),
-        )
-
-        # Fish moves up and down slightly while swimming.
-        fish_y = 98 + int(math.sin(frame_number / 5) * 4)
-
-        draw_fish(
-            draw,
-            int(fish_x),
-            fish_y,
-            fish_direction,
-        )
-
-        fish_x += 1.2 * fish_direction
-
-        if fish_direction == 1 and fish_x > WIDTH - 25:
-            fish_direction = -1
-
-        elif fish_direction == -1 and fish_x < 25:
-            fish_direction = 1
-
-        display.image(image)
-
-        frame_number += 1
-
-        elapsed = time.monotonic() - frame_started
-        remaining_time = (1 / FPS) - elapsed
-
-        if remaining_time > 0:
-            time.sleep(remaining_time)
-
-    # Clear the display when the application stops cleanly.
+    # Clear pixels when the service stops cleanly.
     display.fill(0)
 
 
